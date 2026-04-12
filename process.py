@@ -1,4 +1,4 @@
-"""Score and summarize items using Gemini."""
+"""Score and summarize items using Gemini with model fallback chain."""
 import json
 import os
 import re
@@ -10,22 +10,39 @@ import db
 from fetch import load_sources
 
 _client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY", ""))
-MODEL = "gemini-2.0-flash"  # 2.0-flash: 1500 RPD free tier vs 2.5-flash: 20 RPD
+
+# Model priority: best first, fallback to cheaper models on rate limit
+_MODEL_CHAIN = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-2.0-flash-lite"]
+_RATE_LIMIT_MARKERS = ("429", "RESOURCE_EXHAUSTED", "quota", "rate_limit")
+_exhausted_models: set[str] = set()
 
 
-def _chat(prompt, max_tokens=2000, max_retries=3):
-    for attempt in range(max_retries):
-        try:
-            resp = _client.models.generate_content(model=MODEL, contents=prompt)
-            return resp.text or ""
-        except Exception as e:
-            if attempt < max_retries - 1:
-                wait = 2 ** attempt + 1
-                print(f"[llm] error (attempt {attempt+1}/{max_retries}), retrying in {wait}s: {e}")
-                time.sleep(wait)
-            else:
-                print(f"[llm] failed after {max_retries} attempts: {e}")
-                return ""
+def _chat(prompt, max_tokens=2000, max_retries=2):
+    for model in _MODEL_CHAIN:
+        if model in _exhausted_models:
+            continue
+        for attempt in range(max_retries):
+            try:
+                resp = _client.models.generate_content(model=model, contents=prompt)
+                return resp.text or ""
+            except Exception as e:
+                err = str(e).lower()
+                if any(m in err for m in _RATE_LIMIT_MARKERS):
+                    _exhausted_models.add(model)
+                    remaining = [m for m in _MODEL_CHAIN if m not in _exhausted_models]
+                    if remaining:
+                        print(f"[llm] {model} rate-limited → falling back to {remaining[0]}")
+                    else:
+                        print(f"[llm] all models exhausted")
+                    break
+                if attempt < max_retries - 1:
+                    wait = 2 ** attempt + 1
+                    print(f"[llm] {model} error (attempt {attempt+1}/{max_retries}), retrying in {wait}s: {e}")
+                    time.sleep(wait)
+                else:
+                    print(f"[llm] {model} failed after {max_retries} attempts: {e}")
+                    break
+    return ""
 
 
 def _strip_fence(text):

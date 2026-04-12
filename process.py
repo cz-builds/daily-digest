@@ -81,6 +81,8 @@ def score_all_unscored(batch_size=20):
     items = db.unscored_items(limit=200)
     print(f"[score] {len(items)} items to score")
     for i in range(0, len(items), batch_size):
+        if i > 0:
+            time.sleep(4)
         batch = items[i:i+batch_size]
         for iid, score in score_batch(batch):
             db.update_score(iid, score)
@@ -98,11 +100,11 @@ Snippet: {(item.get('summary') or '')[:1500]}
 URL: {item['url']}
 
 Produce the following in JSON:
-1. "title_zh" — Chinese translation of the title (concise, max 40 chars)
-2. "summary" — 2-3 sentences in English: what happened, why it's significant. Be specific with names, numbers, technical details. Do NOT hallucinate.
-3. "summary_zh" — same content as "summary" but in Chinese
-4. "why_care" — 1 sentence in English: what can I DO with this info? Practical and specific.
-5. "why_care_zh" — same content as "why_care" but in Chinese
+1. "title_zh" — Chinese translation of the title (concise, max 40 chars, MUST be in Chinese)
+2. "summary" — 2-3 sentences in ENGLISH ONLY: what happened, why it's significant. Be specific with names, numbers, technical details. Do NOT hallucinate. Do NOT write Chinese here.
+3. "summary_zh" — same meaning as "summary" but written in CHINESE ONLY. Do NOT copy the English text.
+4. "why_care" — 1 sentence in ENGLISH ONLY: what can I DO with this info? Practical and specific.
+5. "why_care_zh" — same meaning as "why_care" but written in CHINESE ONLY.
 
 If the article is about a paper, mention the key technical contribution.
 If it's about industry news, mention the strategic implication.
@@ -122,7 +124,9 @@ def prepare_top_items(n=10):
     candidates = db.top_candidates(limit=n * 3)
     print(f"[digest] {len(candidates)} candidates above threshold")
     enriched = []
-    for it in candidates[:n + 3]:
+    for i, it in enumerate(candidates[:n + 3]):
+        if i > 0:
+            time.sleep(4)  # Stay under Gemini's 20 RPM free-tier limit
         data = summarize(it)
         if not data:
             continue

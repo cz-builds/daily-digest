@@ -17,8 +17,11 @@ CREATE TABLE IF NOT EXISTS items (
     published_at TEXT,
     fetched_at TEXT DEFAULT CURRENT_TIMESTAMP,
     score REAL,
+    title_zh TEXT,
     summary_en TEXT,
+    summary_zh TEXT,
     why_care TEXT,
+    why_care_zh TEXT,
     sent_in_issue TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_score ON items(score);
@@ -86,11 +89,11 @@ def top_candidates(limit=20, min_score=6.0, max_age_hours=48):
     return [dict(r) for r in rows]
 
 
-def attach_summary(iid, summary_en, why_care):
+def attach_summary(iid, title_zh, summary_en, summary_zh, why_care, why_care_zh):
     with conn() as c:
         c.execute(
-            "UPDATE items SET summary_en=?, why_care=? WHERE id=?",
-            (summary_en, why_care, iid),
+            "UPDATE items SET title_zh=?, summary_en=?, summary_zh=?, why_care=?, why_care_zh=? WHERE id=?",
+            (title_zh, summary_en, summary_zh, why_care, why_care_zh, iid),
         )
 
 

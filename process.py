@@ -88,7 +88,7 @@ def score_all_unscored(batch_size=20):
 
 
 def summarize(item):
-    prompt = f"""You are writing a brief for a student studying IC/FPGA design who is learning about AI and space.
+    prompt = f"""You are writing a bilingual (Chinese + English) brief for a student studying IC/FPGA design who is learning about AI and space.
 
 Article:
 Title: {item['title']}
@@ -97,15 +97,18 @@ Category: {item.get('category', '')}
 Snippet: {(item.get('summary') or '')[:1500]}
 URL: {item['url']}
 
-Produce TWO things in English, returned as JSON:
-1. "summary" — 2-3 sentences: what happened, why it's significant. Be specific with names, numbers, technical details. Do NOT hallucinate.
-2. "why_care" — 1 sentence: what can I DO with this info? How does it connect to AI hardware, FPGA design, or space engineering? Be practical and specific.
+Produce the following in JSON:
+1. "title_zh" — Chinese translation of the title (concise, max 40 chars)
+2. "summary" — 2-3 sentences in English: what happened, why it's significant. Be specific with names, numbers, technical details. Do NOT hallucinate.
+3. "summary_zh" — same content as "summary" but in Chinese
+4. "why_care" — 1 sentence in English: what can I DO with this info? Practical and specific.
+5. "why_care_zh" — same content as "why_care" but in Chinese
 
 If the article is about a paper, mention the key technical contribution.
 If it's about industry news, mention the strategic implication.
 If it's about space, mention the engineering detail that matters.
 
-Return ONLY JSON: {{"summary": "...", "why_care": "..."}}
+Return ONLY JSON: {{"title_zh": "...", "summary": "...", "summary_zh": "...", "why_care": "...", "why_care_zh": "..."}}
 """
     text = _strip_fence(_chat(prompt, max_tokens=500))
     try:
@@ -123,7 +126,10 @@ def prepare_top_items(n=10):
         data = summarize(it)
         if not data:
             continue
-        db.attach_summary(it["id"], data.get("summary", ""), data.get("why_care", ""))
+        db.attach_summary(
+            it["id"], data.get("title_zh", ""), data.get("summary", ""),
+            data.get("summary_zh", ""), data.get("why_care", ""), data.get("why_care_zh", ""),
+        )
         it.update(data)
         enriched.append(it)
     return enriched[:n]

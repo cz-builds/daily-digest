@@ -10,7 +10,7 @@ import db
 from fetch import load_sources
 
 _client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY", ""))
-MODEL = "gemini-2.5-flash"
+MODEL = "gemini-2.0-flash"  # 2.0-flash: 1500 RPD free tier vs 2.5-flash: 20 RPD
 
 
 def _chat(prompt, max_tokens=2000, max_retries=3):

@@ -1,0 +1,42 @@
+rss:
+  # --- AI / Machine Learning ---
+  - name: Hacker News
+    url: https://news.ycombinator.com/rss
+    category: AI & Tech
+  - name: arxiv cs.AI
+    url: https://rss.arxiv.org/rss/cs.AI
+    category: AI Research
+  - name: arxiv cs.AR
+    url: https://rss.arxiv.org/rss/cs.AR
+    category: Hardware
+  - name: MIT News AI
+    url: https://news.mit.edu/topic/mitartificial-intelligence2-rss.xml
+    category: AI Research
+
+  # --- Hardware / Semiconductors ---
+  - name: SemiAnalysis
+    url: https://newsletter.semianalysis.com/feed
+    category: Hardware
+  - name: EE Times
+    url: https://www.eetimes.com/feed/
+    category: Hardware
+
+  # --- Space ---
+  - name: Ars Technica Space
+    url: https://arstechnica.com/space/feed/
+    category: Space
+  - name: Everyday Astronaut
+    url: https://everydayastronaut.com/feed/
+    category: Space
+  - name: SpaceNews
+    url: https://spacenews.com/feed/
+    category: Space
+
+# Topics you care about — used by the scoring prompt.
+focus_areas:
+  - AI/LLM breakthroughs: new models, training techniques, inference optimization, benchmarks
+  - AI on edge/embedded hardware: TinyML, FPGA/ASIC accelerators, quantization, model compression
+  - Semiconductor industry: chip architecture, NVIDIA/AMD/Intel moves, RISC-V, EDA tools, fab news
+  - Space technology: SpaceX Starship, Artemis program, rocket engineering, satellite systems
+  - Open source AI: notable new repos, tools, frameworks
+  - First-principles thinking and contrarian takes on technology trends

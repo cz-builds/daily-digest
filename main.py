@@ -33,9 +33,15 @@ def main():
     print(f"Subject: {subject}")
 
     print("\n=== Step 5: Send ===")
-    to_email = os.environ.get("DIGEST_EMAIL", "")
-    if to_email:
-        send_digest(to_email, subject, html)
+    raw = os.environ.get("DIGEST_EMAIL", "")
+    recipients = [e.strip() for e in raw.split(",") if e.strip()]
+    if recipients:
+        print(f"[send] Sending to {len(recipients)} recipient(s)")
+        ok = 0
+        for email in recipients:
+            if send_digest(email, subject, html):
+                ok += 1
+        print(f"[send] {ok}/{len(recipients)} delivered")
     else:
         print("[send] DIGEST_EMAIL not set, skipping send")
 

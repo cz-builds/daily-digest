@@ -11,30 +11,72 @@ from fetch import load_sources
 
 _client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY", ""))
 
-# Model priority: best first, fallback to cheaper models on rate limit
-_MODEL_CHAIN = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-2.0-flash-lite"]
-_RATE_LIMIT_MARKERS = ("429", "RESOURCE_EXHAUSTED", "quota", "rate_limit")
+# Two chains tuned per task:
+# - Scoring is bulk + low-stakes → prefer the model with the most generous
+#   RPM/RPD limits (flash-lite: 30 RPM / 1500 RPD).
+# - Summarizing is low-volume + quality-sensitive → start with the best model
+#   and fall back to cheaper ones only if needed.
+_SCORE_CHAIN = ["gemini-2.0-flash-lite", "gemini-2.0-flash", "gemini-2.5-flash"]
+_SUMMARIZE_CHAIN = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-2.0-flash-lite"]
+
+_RATE_LIMIT_MARKERS = ("429", "RESOURCE_EXHAUSTED", "quota", "rate_limit", "rate limit")
+# Markers that *strongly* suggest the daily quota is exhausted (vs per-minute).
+# Gemini's error message usually includes "PerDay" or "per day" for RPD breaches.
+_DAILY_LIMIT_MARKERS = ("perday", "per day", "per-day", "daily")
+
+# Models we've concluded are dead for the rest of this run (RPD exhausted).
+# Module-level state, reset on each fresh process (i.e. each Actions run).
 _exhausted_models: set[str] = set()
 
 
-def _chat(prompt, max_tokens=2000, max_retries=2):
-    for model in _MODEL_CHAIN:
+def _is_rate_limit(err: str) -> bool:
+    e = err.lower()
+    return any(m in e for m in _RATE_LIMIT_MARKERS)
+
+
+def _is_daily_limit(err: str) -> bool:
+    e = err.lower()
+    return any(m in e for m in _DAILY_LIMIT_MARKERS)
+
+
+def _chat(prompt, max_tokens=2000, max_retries=2, chain=None):
+    """Call Gemini with automatic fallback.
+
+    Rate-limit handling distinguishes per-minute from per-day:
+      - per-minute (RPM/TPM): sleep ~65s and retry the SAME model once. If that
+        also fails, mark exhausted for this run.
+      - per-day (RPD): mark exhausted immediately, no point waiting.
+    """
+    chain = chain or _SUMMARIZE_CHAIN
+    for model in chain:
         if model in _exhausted_models:
             continue
+
+        rpm_retried = False
         for attempt in range(max_retries):
             try:
                 resp = _client.models.generate_content(model=model, contents=prompt)
                 return resp.text or ""
             except Exception as e:
-                err = str(e).lower()
-                if any(m in err for m in _RATE_LIMIT_MARKERS):
-                    _exhausted_models.add(model)
-                    remaining = [m for m in _MODEL_CHAIN if m not in _exhausted_models]
-                    if remaining:
-                        print(f"[llm] {model} rate-limited → falling back to {remaining[0]}")
-                    else:
-                        print(f"[llm] all models exhausted")
-                    break
+                err = str(e)
+                if _is_rate_limit(err):
+                    if _is_daily_limit(err) or rpm_retried:
+                        # Either explicitly daily, or we already waited and
+                        # retried — give up on this model for the run.
+                        _exhausted_models.add(model)
+                        remaining = [m for m in chain if m not in _exhausted_models]
+                        if remaining:
+                            print(f"[llm] {model} exhausted → falling back to {remaining[0]}")
+                        else:
+                            print(f"[llm] all models exhausted")
+                        break
+                    # First 429 on this model: assume per-minute, sleep and retry once.
+                    print(f"[llm] {model} rate-limited (likely per-minute), sleeping 65s and retrying...")
+                    time.sleep(65)
+                    rpm_retried = True
+                    continue
+
+                # Non-rate-limit error: short backoff, retry up to max_retries.
                 if attempt < max_retries - 1:
                     wait = 2 ** attempt + 1
                     print(f"[llm] {model} error (attempt {attempt+1}/{max_retries}), retrying in {wait}s: {e}")
@@ -85,7 +127,7 @@ Return ONLY a JSON array: [{{"id": "...", "score": 8.5}}, ...]
 Items:
 {json.dumps(payload, ensure_ascii=False)}
 """
-    text = _strip_fence(_chat(prompt))
+    text = _strip_fence(_chat(prompt, chain=_SCORE_CHAIN))
     try:
         results = json.loads(text)
     except json.JSONDecodeError:
@@ -129,7 +171,7 @@ If it's about space, mention the engineering detail that matters.
 
 Return ONLY JSON: {{"title_zh": "...", "summary": "...", "summary_zh": "...", "why_care": "...", "why_care_zh": "..."}}
 """
-    text = _strip_fence(_chat(prompt, max_tokens=500))
+    text = _strip_fence(_chat(prompt, max_tokens=500, chain=_SUMMARIZE_CHAIN))
     try:
         return json.loads(text)
     except json.JSONDecodeError:

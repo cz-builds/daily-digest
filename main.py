@@ -10,7 +10,7 @@ import db
 from fetch import fetch_all
 from process import score_all_unscored, prepare_top_items
 from render import render
-from send import send_digest
+from send import send_digest, get_blocklist
 
 
 def main():
@@ -35,6 +35,16 @@ def main():
     print("\n=== Step 5: Send ===")
     raw = os.environ.get("DIGEST_EMAIL", "")
     recipients = [e.strip() for e in raw.split(",") if e.strip()]
+
+    if recipients:
+        # Filter out anyone on the unsubscribe blocklist
+        blocklist = get_blocklist()
+        before = len(recipients)
+        recipients = [e for e in recipients if e.lower() not in blocklist]
+        skipped = before - len(recipients)
+        if skipped:
+            print(f"[send] Skipped {skipped} unsubscribed recipient(s)")
+
     if recipients:
         print(f"[send] Sending to {len(recipients)} recipient(s)")
         ok = 0
@@ -43,7 +53,7 @@ def main():
                 ok += 1
         print(f"[send] {ok}/{len(recipients)} delivered")
     else:
-        print("[send] DIGEST_EMAIL not set, skipping send")
+        print("[send] No recipients (either DIGEST_EMAIL unset or all unsubscribed)")
 
     # Mark as sent
     issue_id = datetime.now(timezone.utc).strftime("%Y%m%d")

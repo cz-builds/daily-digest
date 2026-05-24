@@ -43,6 +43,10 @@ TEMPLATE = """<!DOCTYPE html>
 <p style="font-size:11px;color:#aaa;text-align:center;">
   Auto-curated from {{ sources_count }} sources by Gemini. Delivered at 06:00 Beijing time.
 </p>
+<p style="font-size:11px;color:#bbb;text-align:center;margin-top:8px;">
+  Don't want to receive this anymore? <a href="__UNSUB_URL__" style="color:#bbb;text-decoration:underline;">Unsubscribe</a><br>
+  不想再收到？<a href="__UNSUB_URL__" style="color:#bbb;text-decoration:underline;">点此退订</a>
+</p>
 </body>
 </html>
 """
